@@ -18,6 +18,9 @@ installer-config secret located in the `SDH_NAMESPACE`. If another registry
 shall be marked as insecure, it can be specified with an additional
 `REGISTRY` parameter.
 
+Please refer to the [SAP Data Hub 2.X on OpenShift Container Platform knowledge
+base article](https://access.redhat.com/articles/3630111) for more information.
+
 ## Usage
 
 If running the observer in the same namespace as Data Hub, instantiate the

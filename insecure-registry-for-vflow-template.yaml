@@ -217,6 +217,6 @@ parameters:
       the installer-config secret in the SDH_NAMESPACE.
   - name: ROLE_BINDING_SUFFIX
     description: >
-      A random suffix for the new RoleBinding's name. Not need to edit.
+      A random suffix for the new RoleBinding's name. No need to edit.
     generate: expression
     from: '[a-z0-9]{5}'
