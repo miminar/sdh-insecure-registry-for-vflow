@@ -11,7 +11,7 @@ self-signed certificate.
 Without the insecure registry set, kaniko builder cannot push built images into
 the configured registry for the Pipeline Modeler (see "Container Registry for
 Pipeline Modeler" Input Parameter at [the official SAP Data Hub documentation](
-https://help.sap.com/viewer/e66c399612e84a83a8abe97c0eeb443a/2.5.latest/en-US/abfa9c73f7704de2907ea7ff65e7a20a.html)
+https://help.sap.com/viewer/e66c399612e84a83a8abe97c0eeb443a/2.5.latest/en-US/abfa9c73f7704de2907ea7ff65e7a20a.html).
 
 The registry to mark as insecure will be determined from the
 installer-config secret located in the `SDH_NAMESPACE`. If another registry
