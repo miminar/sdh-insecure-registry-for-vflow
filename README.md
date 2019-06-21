@@ -24,13 +24,15 @@ If running the observer in the same namespace as Data Hub, instantiate the
 template as is in the desired namespace:
 
     oc project $SDH_NAMESPACE
-    oc process insecure-registry-for-vflow | oc create -f -
+    oc process -f https://raw.githubusercontent.com/miminar/sdh-insecure-registry-for-vflow/master/insecure-registry-for-vflow-template.yaml \
+       -n "${TMPL_NAMESPACE}" insecure-registry-for-vflow | oc create -f -
 
 If running in a different/new namespace/project, instantiate the
 template with parameters `SDH_NAMESPACE` and `NAMESPACE`, e.g.:
 
-    oc new-project sapdatahub-admin
-    oc process insecure-registry-for-vflow \
-        SDH_NAMESPACE=$SDH_NAMESPACE \
-        NAMESPACE=sapdatahub-admin | oc create -f -
+    SDH_NAMESPACE=sdh25
+    NAMESPACE=sapdatahub-admin
+    oc new-project $NAMESPACE
+    oc process -f https://raw.githubusercontent.com/miminar/sdh-insecure-registry-for-vflow/master/insecure-registry-for-vflow-template.yaml \
+        insecure-registry-for-vflow SDH_NAMESPACE=$SDH_NAMESPACE NAMESPACE=$NAMESPACE | oc create -f -
 
