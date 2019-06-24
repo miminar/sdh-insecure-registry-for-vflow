@@ -179,6 +179,7 @@ objects:
                   done
                   # turn the argument array into a json list of strings
                   newarglist="[$(join , "${newargs[@]}")]"
+                  printf 'Patching deployment/%s to treat %s registry as insecure ...\n' "$name" "$registry" >&2
                   oc patch --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/args","value":'"$newarglist"'}]' deploy "$name"
                 else
                   printf 'deployment/%s already patched, skipping ...\n' "$name" >&2
