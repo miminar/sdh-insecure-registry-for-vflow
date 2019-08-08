@@ -1,5 +1,7 @@
 # Insecure registry setter for SAP Data Hub Pipeline Modeler
 
+**NOTE**: obsoleted by [miminar/sdh-helpers](https://github.com/miminar/sdh-helpers)
+
 In SAP Data Hub 2.5.x releases, it is possible to configure insecure
 registry for Pipeline Modeler (aka vflow pod) neither via installer nor
 in the UI.
