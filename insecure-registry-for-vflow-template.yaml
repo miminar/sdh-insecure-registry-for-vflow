@@ -51,12 +51,16 @@ objects:
   metadata:
     name: vflow-observer
     namespace: ${NAMESPACE}
+    labels:
+      name: vflow-observer
 
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: Role
   metadata:
     name: vflow-observer
     namespace: ${SDH_NAMESPACE}
+    labels:
+      deploymentconfig: vflow-observer
   rules:
   - apiGroups:
     - apps
@@ -99,6 +103,8 @@ objects:
   metadata:
     namespace: ${SDH_NAMESPACE}
     name: vflow-observer-${ROLE_BINDING_SUFFIX}
+    labels:
+      deploymentconfig: vflow-observer
   roleRef:
     name: vflow-observer
     kind: Role
@@ -114,10 +120,10 @@ objects:
     name: vflow-observer
     namespace: ${NAMESPACE}
     labels:
-      name: observer
+      deploymentconfig: vflow-observer
   spec:
     selector:
-      name: observer
+      deploymentconfig: vflow-observer
     replicas: 1
     strategy:
       type: Rolling
@@ -126,7 +132,7 @@ objects:
     template:
       metadata:
         labels:
-          name: observer
+          deploymentconfig: vflow-observer
       spec:
         containers:
         - env:
@@ -135,7 +141,7 @@ objects:
           - name: SDH_NAMESPACE
             value: ${SDH_NAMESPACE}
           image: "${BASE_IMAGE}:${BASE_IMAGE_TAG}"
-          name: observer
+          name: vflow-observer
           command:
           - /bin/bash
           args:
@@ -173,24 +179,57 @@ objects:
               fi
               printf '%s\n' "$registry"
             }
-            oc observe deploy | while read -r _ _ _ _ _ _ name; do
+            readonly gotmplarr=(
+              '{{with $spec := .spec.template.spec}}'
+                '{{range $i, $vol := $spec.volumes}}'
+                  '{{with $path := $vol.hostPath.path}}'
+                    '{{if eq $path "/var/run/docker.sock"}}'
+                      '{{$vol.name}}:'
+                      $'{{with $t := $spec.securityContext.seLinuxOptions.type}}{{$t}}{{end}}\n'
+                    '{{end}}'
+                  '{{end}}'
+                '{{end}}'
+              '{{end}}'
+            )
+            gotmpl="$(printf '%s' "${gotmplarr[@]}")"
+
+            while IFS=' ' read -u 3 -r _ _ _ _ _ name; do
+              patches=()
               [[ -z "${name:-}" || "$(oc get deploy "$name" -o go-template='{{if eq (index .metadata.labels "datahub.sap.com/app") "vflow"}}patch{{end}}')" != patch ]] && continue
-                readarray -t vflowargs <<<"$(oc get deploy -o go-template=$'{{range $index, $arg := (index (index .spec.template.spec.containers 0) "args")}}{{$arg}}\n{{end}}' "$name")"
-                if ! echo "${vflowargs[@]}" | grep -q -F -- "-insecure-registry=$(get_registry)"; then
-                  vflowargs+=( "-insecure-registry=$(get_registry)" )
-                  newargs=( )
-                  for ((i=0; i<"${#vflowargs[@]}"; i++)) do
-                    # escape double qoutes of each argument and surround it with double quotes
-                    newargs+=( '"'"$(sed 's/"/\\"/g' <<<"${vflowargs[$i]}")"'"' )
-                  done
-                  # turn the argument array into a json list of strings
-                  newarglist="[$(join , "${newargs[@]}")]"
-                  printf 'Patching deployment/%s to treat %s registry as insecure ...\n' "$name" "$registry" >&2
-                  oc patch --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/args","value":'"$newarglist"'}]' deploy "$name"
+
+              readarray -t vflowargs <<<"$(oc get deploy -o go-template=$'{{range $index, $arg := (index (index .spec.template.spec.containers 0) "args")}}{{$arg}}\n{{end}}' "$name")"
+              registry="$(get_registry)"
+              if [[ -n "${registry:-}" ]] && ! grep -q -F -- "-insecure-registry=${registry}" <<<"${vflowargs[@]}"; then
+                vflowargs+=( "-insecure-registry=$(get_registry)" )
+                newargs=( )
+                for ((i=0; i<"${#vflowargs[@]}"; i++)) do
+                  # escape double qoutes of each argument and surround it with double quotes
+                  newargs+=( '"'"$(sed 's/"/\\"/g' <<<"${vflowargs[$i]}")"'"' )
+                done
+                # turn the argument array into a json list of strings
+                newarglist="[$(join , "${newargs[@]}")]"
+                printf 'Patching deployment/%s to treat %s registry as insecure ...\n' "$name" "$registry" >&2
+                patches+=( '{"op":"add","path":"/spec/template/spec/containers/0/args","value":'"$newarglist"'}' )
+              elif [[ -n "${registry:-}" ]]; then
+                printf 'deployment/%s already patched to treat %s registry as insecure, not patching ...\n' "$name" "$registry" >&2
+              fi
+
+              IFS=: read -r volName seType <<<"$(oc get deploy -o go-template="${gotmpl}" "$name")"
+              if [[ -n "${volName:-}" ]]; then
+                if [[ "${seType:-}" != "spc_t" ]]; then
+                  printf 'Patching deployment/%s to run as spc_t SELinux type ...\n' "$name" >&2
+                  patches+=( "$(join , \
+                              '{"op":"add"' \
+                               '"path":"/spec/template/spec/securityContext"' \
+                               '"value":{"seLinuxOptions":{"type":"spc_t"}}}' )" )
                 else
-                  printf 'deployment/%s already patched, skipping ...\n' "$name" >&2
+                  printf 'deployment/%s already patched to run as spc_t type, not patching ...\n' "$name" >&2
                 fi
-              done
+              fi
+
+              [[ "${#patches[@]}" == 0 ]] && continue
+              oc patch --type json -p "[$(join , "${patches[@]}")]" deploy "$name"
+            done 3< <(oc observe deploy)
         restartPolicy: Always
         serviceAccount: vflow-observer
         serviceAccountName: vflow-observer
@@ -211,7 +250,7 @@ parameters:
   - name: SDH_NAMESPACE
     description: >
       The name of the SAP Data Hub namespace to manage. Defaults to the current
-      one. It must be set only in case the observer is running in a differnt
+      one. It must be set only in case the vflow-observer is running in a differnt
       namespace (see NAMESPACE).
   - name: NAMESPACE
     description: >
